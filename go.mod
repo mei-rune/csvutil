@@ -1,3 +1,3 @@
-module github.com/jszwec/csvutil
+module github.com/mei-rune/csvutil
 
 go 1.13

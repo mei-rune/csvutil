@@ -275,6 +275,7 @@ func (e *Encoder) EncodeHeader(v interface{}) error {
 	return e.encodeHeader(typ)
 }
 
+
 func (e *Encoder) encode(v reflect.Value) error {
 	val := walkValue(v)
 
@@ -295,6 +296,80 @@ func (e *Encoder) encode(v reflect.Value) error {
 	}
 }
 
+func (e *Encoder) EncodeEx(v interface{}) error {
+	return e.encodeEx(reflect.ValueOf(v))
+}
+
+func (e *Encoder) encodeEx(v reflect.Value) error {
+	val := walkValue(v)
+
+	if !val.IsValid() {
+		return &InvalidEncodeError{}
+	}
+
+
+	if m, ok := val.Interface().(map[string]interface{}); ok {
+		return e.encodeMap(m)
+	}
+
+	switch val.Kind() {
+	case reflect.Struct:
+		return e.encodeStruct(val)
+	case reflect.Array, reflect.Slice:
+		// t := walkType(val.Type().Elem());
+		// if  t.Kind() != reflect.Struct {
+		// 	return &InvalidEncodeError{t}
+		// }
+		return e.encodeArray(val)
+	default:
+
+		return &InvalidEncodeError{v.Type()}
+	}
+}
+
+func (e *Encoder) encodeMap(v map[string]interface{}) error {
+	if e.AutoHeader && e.noHeader {
+		var names = e.header
+		if len(names) == 0 {
+			for key := range v {
+				names = append(names, key)
+			}
+		}
+
+		if err := e.w.Write(names); err != nil {
+			return err
+		}
+
+		e.noHeader = false
+		e.header = names
+	}
+
+	var values = make([]string, len(e.header))
+	for idx, name := range e.header {
+		value := v[name]
+		if value == nil {
+			continue
+		}
+
+		fn, err := encodeFn(reflect.TypeOf(value), false, e.funcMap, e.ifaceFuncs)
+		if err != nil {
+			return err
+		}
+
+
+		b, err := fn(nil, reflect.ValueOf(value), true)
+		if err != nil {
+			return err
+		}
+
+		if len(b) > 0 {
+			values[idx] = string(b)
+		}
+	}
+
+	return e.w.Write(values)
+}
+
 func (e *Encoder) encodeStruct(v reflect.Value) error {
 	if e.AutoHeader && e.noHeader {
 		if err := e.encodeHeader(v.Type()); err != nil {
@@ -307,7 +382,12 @@ func (e *Encoder) encodeStruct(v reflect.Value) error {
 func (e *Encoder) encodeArray(v reflect.Value) error {
 	l := v.Len()
 	for i := 0; i < l; i++ {
-		if err := e.encodeStruct(walkValue(v.Index(i))); err != nil {
+		rv := walkValue(v.Index(i))
+		if m, ok := rv.Interface().(map[string]interface{}); ok {
+			return e.encodeMap(m)
+		}
+
+		if err := e.encodeStruct(rv); err != nil {
 			return err
 		}
 	}

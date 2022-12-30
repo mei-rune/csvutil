@@ -384,7 +384,10 @@ func (e *Encoder) encodeArray(v reflect.Value) error {
 	for i := 0; i < l; i++ {
 		rv := walkValue(v.Index(i))
 		if m, ok := rv.Interface().(map[string]interface{}); ok {
-			return e.encodeMap(m)
+			if err := e.encodeMap(m); err != nil {
+				return err
+			}
+			continue
 		}
 
 		if err := e.encodeStruct(rv); err != nil {

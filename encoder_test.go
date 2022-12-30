@@ -144,6 +144,7 @@ func TestEncoder(t *testing.T) {
 		in      []interface{}
 		regFunc []interface{}
 		out     [][]string
+		useEx bool
 		err     error
 	}{
 		{
@@ -1851,6 +1852,7 @@ func TestEncoder(t *testing.T) {
 			desc string
 			in   interface{}
 			out  [][]string
+			useEx bool
 			err  error
 		}{
 			{
@@ -1947,6 +1949,19 @@ func TestEncoder(t *testing.T) {
 				out:  [][]string{},
 			},
 			{
+				desc: "array with map",
+				in: []interface{}{
+					map[string]interface{}{"a": "1", "b": 1},
+					map[string]interface{}{"a": "2", "b": 2},
+				},
+				useEx: true,
+				out: [][]string{
+					{"a", "b"},
+					{"1", "1"},
+					{"2", "2"},
+				},
+			},
+			{
 				desc: "disallow double slice",
 				in: [][]TypeI{
 					{
@@ -2011,8 +2026,13 @@ func TestEncoder(t *testing.T) {
 			t.Run(f.desc, func(t *testing.T) {
 				var buf bytes.Buffer
 				w := csv.NewWriter(&buf)
-				err := NewEncoder(w).Encode(f.in)
 
+				var err error
+				if f.useEx {
+					err = NewEncoder(w).EncodeEx(f.in)
+				} else {
+					err = NewEncoder(w).Encode(f.in)
+				}
 				if f.err != nil {
 					if !checkErr(f.err, err) {
 						t.Errorf("want err=%v; got %v", f.err, err)
